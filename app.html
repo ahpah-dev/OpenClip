@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenClip · Editor</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a href="index.html" class="brand"><img src="assets/logo.svg" alt=""><span>OpenClip</span></a>
+  <div class="proj mono" id="projName">No video open</div>
+  <div class="top-actions">
+    <button class="btn" id="btnOpen">Open video</button>
+    <button class="btn export" id="btnExportTop" disabled>Export</button>
+  </div>
+</header>
+
+<input type="file" id="fileInput" accept="video/*,.mkv,.mov,.mp4,.webm,.m4v" hidden>
+<input type="file" id="subInput" accept=".srt,.vtt,text/vtt" hidden>
+<input type="file" id="musicInput" accept="audio/*" hidden>
+
+<!-- EMPTY STATE -->
+<main class="empty" id="empty">
+  <div class="drop" id="drop">
+    <img src="assets/logo.svg" alt="" class="drop-icon">
+    <h1>Long video. <em>Short</em> clips.</h1>
+    <p>Drop a video here, or choose a file. It stays on your computer.</p>
+    <button class="btn white" id="btnChoose">Choose a video</button>
+    <p class="mono hint">MP4 · MOV · WEBM · MKV — H.264 is safest</p>
+  </div>
+</main>
+
+<!-- EDITOR -->
+<div class="editor" id="editor" hidden>
+
+  <!-- left: clips + transcript -->
+  <aside class="panel left">
+    <div class="tabs" data-tabs="left">
+      <button class="tab on" data-tab="clips">Clips</button>
+      <button class="tab" data-tab="transcript">Transcript</button>
+    </div>
+
+    <section class="pane on" data-pane="clips">
+      <div class="detect">
+        <div class="row">
+          <label class="mono lbl">Length</label>
+          <select id="detLen">
+            <option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option>
+            <option value="30" selected>30 s</option><option value="45">45 s</option>
+            <option value="60">60 s</option><option value="90">90 s</option>
+          </select>
+          <label class="mono lbl">Count</label>
+          <select id="detCount">
+            <option>3</option><option>5</option><option selected>6</option><option>8</option><option>12</option>
+          </select>
+        </div>
+        <button class="btn sm" id="btnDetect">Suggest highlights</button>
+      </div>
+      <div class="clip-list" id="clipList"></div>
+      <div class="list-foot">
+        <button class="btn sm" id="btnNewClip">+ Clip at playhead</button>
+        <span class="mono small" id="clipCount"></span>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="transcript">
+      <div class="tr-tools">
+        <select id="asrModel">
+          <option value="Xenova/whisper-tiny.en">English · tiny (~40 MB)</option>
+          <option value="Xenova/whisper-base">Multilingual · base (~80 MB)</option>
+        </select>
+        <div class="row">
+          <button class="btn sm" id="btnAsrClip">Transcribe clip</button>
+          <button class="btn sm" id="btnAsrAll">Whole video</button>
+        </div>
+        <div class="row">
+          <button class="btn sm" id="btnSub">Import .srt / .vtt</button>
+          <button class="btn sm danger" id="btnClearTr">Clear</button>
+        </div>
+        <div class="asr-status" id="asrStatus" hidden><div class="bar"><i id="asrBar"></i></div><span class="mono small" id="asrText"></span></div>
+        <p class="mono small hint">Runs on your device. The model downloads once, then is cached. Double-click a word to fix it.</p>
+      </div>
+      <div class="transcript" id="transcript"></div>
+    </section>
+  </aside>
+
+  <!-- centre: preview -->
+  <section class="center">
+    <div class="stage"><canvas id="preview" width="1080" height="1920"></canvas></div>
+    <div class="transport">
+      <button class="btn sm" id="btnPlay" title="Play / pause (Space)">Play</button>
+      <span class="mono time" id="timeLbl">0:00.0 / 0:00.0</span>
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+      <label class="chk mono small" title="Show a safe-area guide on the preview only"><input type="checkbox" id="chkGuides"> guides</label>
+    </div>
+  </section>
+
+  <!-- right: inspector -->
+  <aside class="panel right">
+    <div class="tabs" data-tabs="right">
+      <button class="tab on" data-tab="clip">Clip</button>
+      <button class="tab" data-tab="frame">Frame</button>
+      <button class="tab" data-tab="caps">Captions</button>
+      <button class="tab" data-tab="extras">Media</button>
+      <button class="tab" data-tab="post">Post</button>
+    </div>
+
+    <section class="pane on" data-pane="clip">
+      <div class="field"><label class="mono lbl">Name</label><input type="text" id="clipName"></div>
+      <div class="field two">
+        <div><label class="mono lbl">Start</label><input type="text" id="clipStart" class="mono"></div>
+        <div><label class="mono lbl">End</label><input type="text" id="clipEnd" class="mono"></div>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="btnSetIn" title="Shortcut: I">Start = playhead</button>
+        <button class="btn sm" id="btnSetOut" title="Shortcut: O">End = playhead</button>
+      </div>
+      <p class="mono small" id="clipLen"></p>
+      <hr>
+      <div class="field"><label class="chk"><input type="checkbox" id="hookOn"> Hook card</label></div>
+      <div class="field"><input type="text" id="hookText" placeholder="Pick the right trend, win easily"></div>
+      <div class="field"><label class="mono lbl">Shown for <b id="hookDurV"></b></label><input type="range" id="hookDur" min="1" max="6" step="0.5"></div>
+      <hr>
+      <button class="btn sm danger" id="btnDelClip">Delete clip</button>
+    </section>
+
+    <section class="pane" data-pane="frame">
+      <div class="field"><label class="mono lbl">Framing</label>
+        <div class="seg" id="modeSeg"><button data-mode="fill" class="on">Fill</button><button data-mode="fit">Fit + blur</button></div>
+      </div>
+      <div class="field"><label class="mono lbl">Zoom <b id="zoomV"></b></label><input type="range" id="zoom" min="1" max="3" step="0.01"></div>
+      <div class="field"><label class="mono lbl">Horizontal <b id="xV"></b></label><input type="range" id="posX" min="0" max="1" step="0.005"></div>
+      <div class="field"><label class="mono lbl">Vertical <b id="yV"></b></label><input type="range" id="posY" min="0" max="1" step="0.005"></div>
+      <hr>
+      <button class="btn sm" id="btnFollow">Auto-follow motion</button>
+      <button class="btn sm ghost" id="btnClearFollow">Clear tracking</button>
+      <div class="asr-status" id="followStatus" hidden><div class="bar"><i id="followBar"></i></div><span class="mono small">Tracking…</span></div>
+      <p class="mono small hint" id="followNote">Follows movement across the shot. For a steady talking head, set the horizontal position by hand.</p>
+    </section>
+
+    <section class="pane" data-pane="caps">
+      <div class="field"><label class="chk"><input type="checkbox" id="capOn"> Show captions</label></div>
+      <div class="styles" id="styleGrid"></div>
+      <div class="field"><label class="mono lbl">Size <b id="capSizeV"></b></label><input type="range" id="capSize" min="36" max="130" step="1"></div>
+      <div class="field"><label class="mono lbl">Position <b id="capYV"></b></label><input type="range" id="capY" min="0.1" max="0.9" step="0.005"></div>
+      <div class="field"><label class="mono lbl">Words per page <b id="capPerV"></b></label><input type="range" id="capPer" min="1" max="6" step="1"></div>
+      <div class="field two">
+        <label class="chk"><input type="checkbox" id="capUpper"> UPPERCASE</label>
+        <div class="color"><label class="mono lbl">Accent</label><input type="color" id="capAccent"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="extras">
+      <div class="field"><label class="mono lbl">Overlay text</label><input type="text" id="ovText" placeholder="@yourhandle"></div>
+      <div class="field"><div class="seg" id="ovPos"><button data-pos="top" class="on">Top</button><button data-pos="bottom">Bottom</button></div></div>
+      <div class="field"><label class="chk"><input type="checkbox" id="progressOn"> Progress bar</label></div>
+      <hr>
+      <div class="field"><label class="mono lbl">Original audio <b id="origV"></b></label><input type="range" id="origVol" min="0" max="1.5" step="0.01"></div>
+      <div class="field">
+        <label class="mono lbl">Music</label>
+        <div class="row"><button class="btn sm" id="btnMusic">Choose audio…</button><button class="btn sm ghost" id="btnMusicClear" hidden>Remove</button></div>
+        <p class="mono small" id="musicName"></p>
+      </div>
+      <div class="field"><label class="mono lbl">Music volume <b id="musicV"></b></label><input type="range" id="musicVol" min="0" max="1" step="0.01"></div>
+    </section>
+
+    <section class="pane" data-pane="post">
+      <p class="mono lbl">Output</p>
+      <p class="small">1080 × 1920 · 30 fps · captions burned in<br><span class="mono" id="fmtNote"></span></p>
+      <div class="field"><label class="chk"><input type="checkbox" id="saveSrt" checked> Also save a matching .srt</label></div>
+      <div class="col-btns">
+        <button class="btn export" id="btnExport">Export this clip</button>
+        <button class="btn" id="btnExportAll">Export all included clips</button>
+        <button class="btn ghost" id="btnSrtOnly">Download .srt only</button>
+      </div>
+      <p class="mono small hint">Exports render in real time and stay in your browser. Keep this tab visible until the file downloads.</p>
+    </section>
+  </aside>
+
+  <!-- bottom: timeline -->
+  <section class="timeline">
+    <div class="tl-bar">
+      <span class="mono small">Timeline</span>
+      <span class="mono small hint">scroll to zoom · shift+scroll to pan · drag handles to trim</span>
+      <span class="grow"></span>
+      <button class="btn sm ghost" id="tlWhole">Whole video</button>
+      <button class="btn sm ghost" id="tlClip">Zoom to clip</button>
+    </div>
+    <canvas id="timeline"></canvas>
+  </section>
+</div>
+
+<video id="srcVideo" playsinline preload="auto" style="position:fixed;left:-9999px;width:2px;height:2px;opacity:0;pointer-events:none"></video>
+<audio id="music" loop preload="auto" style="display:none"></audio>
+
+<div class="overlay" id="busy" hidden>
+  <div class="busy-card">
+    <div class="spinner"></div>
+    <h3 id="busyTitle">Working…</h3>
+    <p class="mono small" id="busyText"></p>
+    <div class="bar" id="busyBarWrap" hidden><i id="busyBar"></i></div>
+    <button class="btn sm" id="busyCancel" hidden>Cancel</button>
+  </div>
+</div>
+<div id="toasts"></div>
+
+<script src="js/util.js"></script>
+<script src="js/analyze.js"></script>
+<script src="js/captions.js"></script>
+<script src="js/render.js"></script>
+<script src="js/transcribe.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
